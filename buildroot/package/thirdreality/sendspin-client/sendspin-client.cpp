@@ -290,7 +290,14 @@ int main(int argc, char *argv[]) {
   config.name = friendly_name;
   config.product_name = "Voice & Music Assistant";
   config.manufacturer = "ThirdReality";
-  config.software_version = "1.0.0";
+  // Reflect the actual firmware version (set in process environ by the
+  // platform via /etc/profile.d) rather than a stale hardcoded literal, so
+  // server-side capability negotiation and diagnostics see the real build.
+  if (const char *fw = std::getenv("firmware_version")) {
+    config.software_version = fw;
+  } else {
+    config.software_version = "1.0.0";
+  }
 
   SendspinClient client(std::move(config));
 
