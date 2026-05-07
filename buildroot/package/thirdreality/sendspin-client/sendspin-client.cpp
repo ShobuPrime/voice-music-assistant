@@ -12,7 +12,9 @@
 #include <pulse/error.h>
 #include <pulse/simple.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -275,7 +277,16 @@ int main(int argc, char *argv[]) {
   SendspinClient::set_log_level(log_level);
 
   SendspinClientConfig config;
-  config.client_id = "3rspk-sendspin";
+  // Per Sendspin spec, client_id "uniquely identifies the client for groups
+  // and de-duplication. Should remain persistent across reconnections." A
+  // hardcoded literal would collide on multi-speaker installations because
+  // the server treats it as the canonical client registry key. Derive from
+  // friendly_name (already MAC-based, e.g. 3RSPK-A8E29151E187) so each unit
+  // gets its own stable identity.
+  std::string client_id = friendly_name;
+  std::transform(client_id.begin(), client_id.end(), client_id.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  config.client_id = client_id;
   config.name = friendly_name;
   config.product_name = "Voice & Music Assistant";
   config.manufacturer = "ThirdReality";
