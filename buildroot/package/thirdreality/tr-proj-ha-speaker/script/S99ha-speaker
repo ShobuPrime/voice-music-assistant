@@ -94,9 +94,6 @@ stop_voice_assistant() {
 start_sendspin() {
     pidof sendspin-client > /dev/null 2>&1 && return 0
 
-    /etc/init.d/S50avahi-daemon stop 2>/dev/null
-    /etc/init.d/S50avahi-daemon start 2>/dev/null
-    
     rm -f "$DISABLE_SENDSPIN"
     local spk_name
     spk_name=$(jq -r '.device.name // "3RSPK Speaker"' "$DEVICE_CONF")
@@ -159,6 +156,14 @@ start() {
     fi
 
     /usr/share/thirdreality/script/setup_env.sh
+
+    # avahi-daemon was started by S50 before setup_env.sh set the system
+    # hostname, so its publish state still references the boot-time name.
+    # Push the new name surgically via dbus instead of bouncing the daemon —
+    # this republishes /etc/avahi/services/*.service files with %h substitution
+    # without a multicast blackout that could hide _esphomelib._tcp from HA.
+    SPK_NAME=$(jq -r '.device.name // "thirdreality-speaker"' "$DEVICE_CONF")
+    avahi-set-host-name "$SPK_NAME" >/dev/null 2>&1 || true
 
     NETWORK_STATUS=$(jq -r '.network.status // "disconnected"' "$DEVICE_CONF" 2>/dev/null)
     if [ "$NETWORK_STATUS" = "disconnected" ]; then
