@@ -19,6 +19,7 @@ ThirdReality Voice&Music Assistant is an open-source speaker that supports conne
   - [Multi-Room Music](#multi-room-music)
     - [Work with Apple HomePod](#work-with-apple-homepod)
     - [Work with Sonos](#work-with-sonos)
+    - [Work with DLNA / UPnP](#work-with-dlna--upnp)
 
 ---
 
@@ -270,3 +271,19 @@ Then you can create a universal group player with your thirdreality speaker and 
   <img src="doc/images/music-12.png" width="30%">
   <img src="doc/images/music-13.png" width="30%">
 </div>
+
+### Work with DLNA / UPnP
+
+1. The speaker advertises as a UPnP/DLNA MediaRenderer when DLNA is enabled in the firmware build. It is discoverable via SSDP on the local subnet — no separate avahi service file is required, since gmediarender publishes its own SSDP descriptors on its HTTP port.
+
+2. **Cross-VLAN limitation:** UniFi's mDNS Proxy does NOT relay SSDP. UPnP discovery uses the multicast group `239.255.255.250:1900`, which is a separate protocol from mDNS at `224.0.0.251:5353`. Cross-VLAN DLNA therefore requires either putting Home Assistant and the speaker on the same VLAN, or running a dedicated SSDP/UPnP relay daemon on a dual-homed host. This is a network-side limitation, not a speaker firmware issue. Adding service types to UniFi's mDNS custom list does NOT help SSDP.
+
+3. To play to the speaker from Android: use BubbleUPnP, VLC, Hi-Fi Cast, or any DLNA controller. Select the speaker by its friendly name (`3RSPK-XXXXXXXXXXXX`).
+
+4. From a Linux desktop: use VLC's Renderer menu (**View → Renderer →** select the speaker), or any UPnP-aware media app.
+
+5. Volume changes from a UPnP controller currently adjust the gstreamer pipeline volume rather than the system PulseAudio sink. Hardware buttons on the speaker still control the master sink volume. See `doc/dlna-plan.md` §7 for the volume-coupling discussion and the planned follow-up.
+
+6. **Chromecast support:** This branch is DLNA-only. For experimental Chromecast tab cast, see the separate `feat/chromecast-shanocast` branch and `doc/cast-shanocast-plan.md` — note that branch ships shanocast, which only supports Chrome browser tab/desktop cast (not music apps) and has a hard 2027-12-21 expiry.
+
+7. For technical detail and known issues, see `doc/dlna-plan.md`.
