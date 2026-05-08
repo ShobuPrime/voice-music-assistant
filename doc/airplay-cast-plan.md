@@ -195,30 +195,50 @@ we should not hand-edit them.
 
 User asked: **can the speaker also advertise itself as a Chromecast?**
 
-**Short answer: not realistically.** Three independent walls:
+**Original short answer was: "not realistically — no FOSS Cast receiver
+exists." That was wrong on the literal claim and is corrected below.** A
+project named **shanocast** (rgerganov/shanocast, last meaningful commit
+2026-03) does implement a working Chromecast receiver on Linux by patching
+Google's Openscreen library. The walls are different from what I first wrote.
 
-### 8.1 No FOSS Cast receiver exists for Linux
+### 8.1 What shanocast actually delivers (and doesn't)
 
-Searches for "chromecast receiver" / "cast audio receiver" on GitHub returned
-**zero** project that actually implements the receiver side of the Cast
-protocol. Existing libraries (`pychromecast`, `go-chromecast`,
-`mkchromecast`, `castnow`) are all **senders**. The receiver-side codebase is
-the proprietary Google Cast SDK, which:
+- **Scope**: Chrome browser tab cast and full-desktop cast. The README and
+  demo show "mirror a Chrome tab or the entire desktop." Audio-app casting
+  (Spotify Connect, YouTube Music, Apple Music in-app cast) is **not** in the
+  documented or tested feature set.
+- **Build dependencies** (per `cast_receiver.nix`): `gn`, `ninja`, `python3`,
+  `pkg-config`, `ffmpeg`, **`SDL2`**. SDL2's presence indicates the binary
+  expects a display surface — this is a tab/desktop mirror receiver, not a
+  Cast Audio receiver.
+- **Build system**: GN + ninja, Chromium-style. Buildroot has no native
+  pattern for Chromium subprojects; recipes for upstream `openscreen` do not
+  exist in our buildroot tree.
+- **Authentication mechanism**: ships extracted Google "Eureka Gen1 ICA"
+  intermediate certificate + 45 KB of precomputed RSA signatures (covering
+  2023-08-15 through 2027-12-21) that exploit a `enforce_nonce_checking =
+  false` flag in Chrome's Openscreen client. Embedded directly in the patch
+  as C arrays.
+- **Hard expiry**: signature window ends 2027-12-21. After that, the receiver
+  stops authenticating until the exploit is re-derived or Google fixes the
+  Chrome flag (which, when fixed, breaks shanocast permanently).
+- **License/IP**: the project ships extracted Google PKI material. The author
+  named the project after Bulgarian slang for "shady/illegal" and warns "I
+  don't think this hack will work for long." Distribution risk on a
+  commercial/forkable firmware image is not zero.
 
-- Ships only as a binary, with closed signing keys
-- Requires Google-issued device certs to pass client trust checks
-- Is licensed for hardware vendors, not redistributable
+### 8.2 mDNS impersonation alone still breaks at first connect
 
-### 8.2 mDNS-only impersonation breaks at first connect
-
-Publishing `_googlecast._tcp` with port 8009 from this speaker would make it
-visible in Google Home / Cast-aware apps. The first client connection then
-does:
+Without shanocast's specific signature-replay mechanism, a `_googlecast._tcp`
+advertisement still fails at first connect:
 1. TLS handshake using Google PKI; speaker has no cert → fail
-2. CASTV2 channel auth using deviceauth proto → fail
-3. Even if bypassed, the receiver app dispatch layer expects Cast SDK runtime
+2. CASTV2 channel auth using deviceauth proto with nonce → fail
+3. Even if bypassed, the receiver app dispatch layer expects the Cast SDK
+   runtime to render apps
 
-So advertise-only doesn't help anyone — the user clicks the speaker, app errors.
+So the question of Cast support reduces to: are we shipping shanocast (with
+all its caveats), are we using MA's bridges, or are we substituting a
+different protocol (DLNA)?
 
 ### 8.3 What MA already provides (the workable answer)
 
@@ -250,13 +270,27 @@ Footprint similar to shairport-sync. Could be a v2 deliverable.
 **Option b — Snapcast (revert/parallel)**: The pre-1.1.8 stack the user just
 moved off of. Not recommended for re-adding.
 
-### 8.5 Recommendation
+### 8.5 Recommendation (updated)
 
-**Do AirPlay 2. Skip Cast.** When users want Cast group play, document that
-they should add Music Assistant's Sendspin bridges with their existing Cast
-devices (the Nest Mini in the kitchen, etc.) and not look for the speaker
-inside the Google Home app. If demand later justifies it, revisit DLNA as a
-gentler "remote target" option.
+The right matrix to test, rather than picking one path, is **five separate
+build branches** so we can compare on hardware:
+
+| # | Branch | Contents |
+|---|---|---|
+| 1 | `linux-voice-assistant` | Sendspin fixes only (already shipped) |
+| 2 | `feat/airplay-shairport-sync` | Sendspin fixes + AirPlay 2 (this plan) |
+| 3 | `feat/chromecast-shanocast` | Sendspin fixes + shanocast (Chrome tab cast) |
+| 4 | `feat/dlna-pulseaudio` | Sendspin fixes + DLNA receiver |
+| 5 | `feat/everything` | All of the above |
+
+shanocast (#3, #5) ships at known risk: 2027 expiry, Chromium build system,
+embedded extracted PKI, scope limited to Chrome browser cast. DLNA (#4, #5)
+covers the "send audio from a non-Apple app to the speaker" need for clients
+like BubbleUPnP, VLC, and many Android media apps — different protocol but
+similar end-user effect, and it doesn't carry shanocast's caveats.
+
+Per-branch implementation plans for #3 and #4 live in `doc/cast-shanocast-plan.md`
+and `doc/dlna-plan.md` respectively. This plan (#2) stays focused on AirPlay 2.
 
 ## 9. Volume + state coupling
 
