@@ -270,27 +270,35 @@ Footprint similar to shairport-sync. Could be a v2 deliverable.
 **Option b — Snapcast (revert/parallel)**: The pre-1.1.8 stack the user just
 moved off of. Not recommended for re-adding.
 
-### 8.5 Recommendation (updated)
+### 8.5 Recommendation (final, post Phase 0)
 
-The right matrix to test, rather than picking one path, is **five separate
-build branches** so we can compare on hardware:
+The matrix is **four functional build branches**, after dropping the Cast
+branch entirely on the strength of Phase 0 findings:
 
 | # | Branch | Contents |
 |---|---|---|
-| 1 | `linux-voice-assistant` | Sendspin fixes only (already shipped) |
+| 1 | `linux-voice-assistant` | Sendspin fixes only (baseline) |
 | 2 | `feat/airplay-shairport-sync` | Sendspin fixes + AirPlay 2 (this plan) |
-| 3 | `feat/chromecast-shanocast` | Sendspin fixes + shanocast (Chrome tab cast) |
-| 4 | `feat/dlna-pulseaudio` | Sendspin fixes + DLNA receiver |
-| 5 | `feat/everything` | All of the above |
+| 3 | `feat/dlna-gmediarender` | Sendspin fixes + DLNA receiver (gmrender-resurrect) |
+| 4 | `feat/everything` | Sendspin fixes + AirPlay 2 + DLNA |
 
-shanocast (#3, #5) ships at known risk: 2027 expiry, Chromium build system,
-embedded extracted PKI, scope limited to Chrome browser cast. DLNA (#4, #5)
-covers the "send audio from a non-Apple app to the speaker" need for clients
-like BubbleUPnP, VLC, and many Android media apps — different protocol but
-similar end-user effect, and it doesn't carry shanocast's caveats.
+The previously-planned `feat/chromecast-shanocast` branch was dropped after
+the cast-receiver team's Phase 0 scout established that:
 
-Per-branch implementation plans for #3 and #4 live in `doc/cast-shanocast-plan.md`
-and `doc/dlna-plan.md` respectively. This plan (#2) stays focused on AirPlay 2.
+- Google revoked the "Eureka Gen1 ICA" certificate in late 2024
+- Per `rgerganov/shanocast` issues #12 (Nov 2024) and #15 (May 2025), the
+  embedded signature replay no longer authenticates against Chrome 131+
+- The community fix (`BeardedTek/shanocast#dynamic-certificates`, last
+  active 2025-06-25) requires live-fetching per-2-day rotating certs from a
+  running CastReceiver Android app, which is fundamentally incompatible
+  with bake-into-firmware
+- BeardedTek's own WIP stalled in mid-2025 with no progress
+
+Implementation plans for #3 and #4 live in `doc/dlna-plan.md`. This plan
+(#2) stays focused on AirPlay 2. The dropped Cast plan
+(`doc/cast-shanocast-plan.md`) was deleted alongside its branch; revisit if
+a viable static-cert refresh emerges or a different FOSS Cast receiver
+appears.
 
 ## 9. Volume + state coupling
 
