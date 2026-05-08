@@ -20,6 +20,7 @@ ThirdReality Voice&Music Assistant is an open-source speaker that supports conne
     - [Work with Apple HomePod](#work-with-apple-homepod)
     - [Work with Sonos](#work-with-sonos)
     - [Work with AirPlay 2 / HomePod](#work-with-airplay-2--homepod)
+    - [Work with DLNA / UPnP](#work-with-dlna--upnp)
 
 ---
 
@@ -286,6 +287,20 @@ The speaker has a built-in AirPlay 2 receiver (shairport-sync + nqptp) that lets
 
 5. Volume changes from any source — sendspin music streams, AirPlay clients, and the hardware buttons on the speaker — are unified. They all flow through PulseAudio's default sink and are persisted in `/data/conf/sound.json`, so adjusting volume in one place is reflected everywhere.
 
-6. **Chromecast (Google Cast) is not supported.** The speaker does not advertise as a Chromecast endpoint, and adding that is not feasible (no FOSS Cast receiver exists, and the Cast SDK is closed). For cross-protocol grouping with existing Cast devices on your network, use Music Assistant's Sendspin bridges — group your speaker with a Nest Mini or a Cast-capable TV via MA's group player feature. See [doc/airplay-cast-plan.md](doc/airplay-cast-plan.md) §8 for the full reasoning.
+6. **Chromecast (Google Cast) is not supported in this firmware.** Although a community FOSS Cast receiver exists ([rgerganov/shanocast](https://github.com/rgerganov/shanocast)), Google revoked the upstream certificate in late 2024 — the receiver no longer authenticates against current Chrome. For cross-protocol grouping with existing Cast devices on your network, use Music Assistant's Sendspin bridges — group your speaker with a Nest Mini or a Cast-capable TV via MA's group player feature. See [doc/airplay-cast-plan.md](doc/airplay-cast-plan.md) §8 for the full investigation.
 
 7. For technical detail on the implementation (build packages, init wiring, volume coupling), see [doc/airplay-cast-plan.md](doc/airplay-cast-plan.md).
+
+### Work with DLNA / UPnP
+
+1. The speaker advertises as a UPnP/DLNA MediaRenderer when DLNA is enabled in the firmware build. It is discoverable via SSDP on the local subnet — no separate avahi service file is required, since gmediarender publishes its own SSDP descriptors on its HTTP port.
+
+2. **Cross-VLAN limitation:** UniFi's mDNS Proxy does NOT relay SSDP. UPnP discovery uses the multicast group `239.255.255.250:1900`, which is a separate protocol from mDNS at `224.0.0.251:5353`. Cross-VLAN DLNA therefore requires either putting Home Assistant and the speaker on the same VLAN, or running a dedicated SSDP/UPnP relay daemon on a dual-homed host. This is a network-side limitation, not a speaker firmware issue. Adding service types to UniFi's mDNS custom list does NOT help SSDP.
+
+3. To play to the speaker from Android: use BubbleUPnP, VLC, Hi-Fi Cast, or any DLNA controller. Select the speaker by its friendly name (`3RSPK-XXXXXXXXXXXX`).
+
+4. From a Linux desktop: use VLC's Renderer menu (**View → Renderer →** select the speaker), or any UPnP-aware media app.
+
+5. Volume changes from a UPnP controller currently adjust the gstreamer pipeline volume rather than the system PulseAudio sink. Hardware buttons on the speaker still control the master sink volume. See `doc/dlna-plan.md` §7 for the volume-coupling discussion and the planned follow-up.
+
+6. For technical detail and known issues, see `doc/dlna-plan.md`.

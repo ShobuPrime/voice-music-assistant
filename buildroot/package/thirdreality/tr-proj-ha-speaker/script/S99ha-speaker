@@ -7,13 +7,14 @@
 #   - voice-assistant  (python3 -m linux_voice_assistant)
 #   - sendspin-client  (music streaming)
 #   - airplay          (shairport-sync + nqptp, AirPlay 2 receiver)
+#   - dlna             (gmediarender DLNA / UPnP MediaRenderer)
 #   - pulseaudio       (reboot device if it dies)
 #
 # Usage:
 #   S99ha-speaker start|stop|restart
 #   S99ha-speaker <service> start|stop|restart
 #
-# Services: netmonitor, voice-assistant, sendspin-client, airplay
+# Services: netmonitor, voice-assistant, sendspin-client, airplay, dlna
 
 PIDDIR=/var/run/thirdreality
 MONITOR_PIDFILE=$PIDDIR/ha-speaker.pid
@@ -26,6 +27,7 @@ SENDSPIN_CLIENT=/usr/bin/sendspin-client
 
 NQPTP=/usr/bin/nqptp
 SHAIRPORT_SYNC=/usr/bin/shairport-sync
+GMRENDER_RESURRECT=/usr/bin/gmediarender
 
 CHECK_INTERVAL=10
 
@@ -36,6 +38,7 @@ DISABLE_NETMONITOR=/tmp/ha_disable_netmonitor
 DISABLE_VOICE=/tmp/ha_disable_voice
 DISABLE_SENDSPIN=/tmp/ha_disable_sendspin
 DISABLE_AIRPLAY=/tmp/ha_disable_airplay
+DISABLE_DLNA=/tmp/ha_disable_dlna
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -140,6 +143,31 @@ stop_airplay() {
 }
 
 # ---------------------------------------------------------------------------
+# gmediarender (DLNA / UPnP receiver)
+# ---------------------------------------------------------------------------
+
+start_dlna() {
+    pidof gmediarender > /dev/null 2>&1 && return 0
+
+    rm -f "$DISABLE_DLNA"
+    local spk_name mac uuid
+    spk_name=$(jq -r '.device.name // "3RSPK Speaker"' "$DEVICE_CONF")
+    mac=$(jq -r '.device.macAddress' "$DEVICE_CONF" | tr -d ':' | tr 'A-Z' 'a-z')
+    uuid="3rspk-dlna-${mac}"
+
+    start-stop-daemon --start --quiet --background --name gmediarender \
+        --exec "$GMRENDER_RESURRECT" -- \
+        -f "$spk_name" -u "$uuid" \
+        --gstout-audiosink=pulsesink \
+        --logfile=/dev/null
+}
+
+stop_dlna() {
+    touch "$DISABLE_DLNA"
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --name gmediarender
+}
+
+# ---------------------------------------------------------------------------
 # Monitor loop
 # ---------------------------------------------------------------------------
 
@@ -169,7 +197,13 @@ monitor_loop() {
             start_airplay
         fi
 
-        # 5. pulseaudio
+        # 5. gmediarender (DLNA / UPnP receiver)
+        if [ ! -f "$DISABLE_DLNA" ] && ! pidof gmediarender > /dev/null 2>&1; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] gmediarender not running, restarting..."
+            start_dlna
+        fi
+
+        # 6. pulseaudio
         if ! pidof pulseaudio > /dev/null 2>&1; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] pulseaudio died, rebooting..."
             sync
@@ -233,9 +267,10 @@ stop() {
     stop_voice_assistant
     stop_sendspin
     stop_airplay
+    stop_dlna
     stop_netmonitor
     # Clear disable flags so next start brings everything up
-    rm -f "$DISABLE_NETMONITOR" "$DISABLE_VOICE" "$DISABLE_SENDSPIN" "$DISABLE_AIRPLAY"
+    rm -f "$DISABLE_NETMONITOR" "$DISABLE_VOICE" "$DISABLE_SENDSPIN" "$DISABLE_AIRPLAY" "$DISABLE_DLNA"
 }
 
 restart() {
@@ -284,9 +319,17 @@ service_cmd() {
                 *) echo "Usage: $0 airplay {start|stop|restart}"; exit 1 ;;
             esac
             ;;
+        dlna)
+            case "$action" in
+                start)   start_dlna ;;
+                stop)    stop_dlna ;;
+                restart) stop_dlna; sleep 1; start_dlna ;;
+                *) echo "Usage: $0 dlna {start|stop|restart}"; exit 1 ;;
+            esac
+            ;;
         *)
             echo "Unknown service: $svc"
-            echo "Services: netmonitor, voice-assistant, sendspin-client, airplay"
+            echo "Services: netmonitor, voice-assistant, sendspin-client, airplay, dlna"
             exit 1
             ;;
     esac
@@ -300,12 +343,12 @@ case "$1" in
     start)   start   ;;
     stop)    stop    ;;
     restart) restart ;;
-    netmonitor|voice-assistant|sendspin-client|airplay)
+    netmonitor|voice-assistant|sendspin-client|airplay|dlna)
         service_cmd "$1" "$2"
         ;;
     *)
         echo "Usage: $0 {start|stop|restart}"
-        echo "       $0 {netmonitor|voice-assistant|sendspin-client|airplay} {start|stop|restart}"
+        echo "       $0 {netmonitor|voice-assistant|sendspin-client|airplay|dlna} {start|stop|restart}"
         exit 1
         ;;
 esac
