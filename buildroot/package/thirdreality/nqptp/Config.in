@@ -1,0 +1,14 @@
+config BR2_PACKAGE_NQPTP
+	bool "nqptp"
+	depends on BR2_USE_MMU # fork()
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	help
+	  Not Quite PTP - a daemon that provides Precision Time Protocol
+	  (PTP) timing services required by shairport-sync 4+ for AirPlay 2
+	  group synchronization with HomePod and other AP2 receivers.
+
+	  Listens on UDP ports 319 and 320 and writes a shared memory
+	  region consumed by shairport-sync to synchronize playback clocks
+	  across grouped AirPlay 2 endpoints.
+
+	  https://github.com/mikebrady/nqptp
