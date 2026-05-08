@@ -1,0 +1,31 @@
+config BR2_PACKAGE_SHAIRPORT_SYNC
+	bool "shairport-sync (AirPlay 2)"
+	depends on BR2_USE_MMU # avahi, pulseaudio
+	depends on !BR2_STATIC_LIBS # avahi
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	select BR2_PACKAGE_PULSEAUDIO
+	select BR2_PACKAGE_AVAHI
+	select BR2_PACKAGE_AVAHI_DAEMON
+	select BR2_PACKAGE_OPENSSL
+	select BR2_PACKAGE_LIBSOXR
+	select BR2_PACKAGE_LIBPLIST
+	select BR2_PACKAGE_LIBSODIUM
+	select BR2_PACKAGE_POPT
+	select BR2_PACKAGE_LIBGCRYPT
+	select BR2_PACKAGE_NQPTP
+	help
+	  shairport-sync is an AirPlay audio receiver. With --with-airplay-2
+	  enabled it implements AirPlay 2, allowing the speaker to be added to
+	  HomePod / iOS Control Center groups with sample-accurate sync via
+	  the companion nqptp PTP daemon.
+
+	  This package builds shairport-sync 5.0.4 with the PulseAudio backend
+	  (matching the speaker's existing audio sink), Avahi mDNS publishing,
+	  OpenSSL, and libsoxr resampling. The runtime config is installed to
+	  /etc/shairport-sync.conf.
+
+	  https://github.com/mikebrady/shairport-sync
+
+comment "shairport-sync needs a toolchain w/ threads, dynamic library"
+	depends on BR2_USE_MMU
+	depends on !BR2_TOOLCHAIN_HAS_THREADS || BR2_STATIC_LIBS
