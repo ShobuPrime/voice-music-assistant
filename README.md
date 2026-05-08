@@ -19,6 +19,7 @@ ThirdReality Voice&Music Assistant is an open-source speaker that supports conne
   - [Multi-Room Music](#multi-room-music)
     - [Work with Apple HomePod](#work-with-apple-homepod)
     - [Work with Sonos](#work-with-sonos)
+    - [Work with AirPlay 2 / HomePod](#work-with-airplay-2--homepod)
 
 ---
 
@@ -270,3 +271,21 @@ Then you can create a universal group player with your thirdreality speaker and 
   <img src="doc/images/music-12.png" width="30%">
   <img src="doc/images/music-13.png" width="30%">
 </div>
+
+### Work with AirPlay 2 / HomePod
+
+The speaker has a built-in AirPlay 2 receiver (shairport-sync + nqptp) that lets iOS, macOS, and HomePod groups stream directly to it without going through Music Assistant.
+
+1. With AirPlay enabled in firmware, the speaker advertises `_airplay._tcp` (port 7000) and `_raop._tcp` (port 5000) over mDNS, alongside its existing `_esphomelib._tcp` and `_sendspin._tcp` records.
+
+2. **Cross-VLAN networks (UniFi or similar with mDNS proxies):** add `_airplay._tcp` and `_raop._tcp` to your gateway's mDNS reflector custom service-type list, alongside any existing `_esphomelib._tcp` and `_sendspin._tcp` entries. Without this, the speaker won't appear in iOS AirPlay pickers from a different VLAN than the one Apple devices live on.
+
+3. To play to the speaker from iOS or macOS: open Control Center, tap the AirPlay icon, and select `3RSPK-XXXXXXXXXXXX` (the friendly name from `device.json`).
+
+4. To group with a HomePod or HomePod mini: pair via the iOS Home app or the Control Center group selector. Sample-accurate sync is provided by PTP timing — the speaker runs `nqptp` for this.
+
+5. Volume changes from any source — sendspin music streams, AirPlay clients, and the hardware buttons on the speaker — are unified. They all flow through PulseAudio's default sink and are persisted in `/data/conf/sound.json`, so adjusting volume in one place is reflected everywhere.
+
+6. **Chromecast (Google Cast) is not supported.** The speaker does not advertise as a Chromecast endpoint, and adding that is not feasible (no FOSS Cast receiver exists, and the Cast SDK is closed). For cross-protocol grouping with existing Cast devices on your network, use Music Assistant's Sendspin bridges — group your speaker with a Nest Mini or a Cast-capable TV via MA's group player feature. See [doc/airplay-cast-plan.md](doc/airplay-cast-plan.md) §8 for the full reasoning.
+
+7. For technical detail on the implementation (build packages, init wiring, volume coupling), see [doc/airplay-cast-plan.md](doc/airplay-cast-plan.md).
