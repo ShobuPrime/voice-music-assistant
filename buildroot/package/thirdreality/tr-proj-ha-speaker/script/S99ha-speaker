@@ -6,13 +6,14 @@
 #   - netmonitor       (WiFi/internet connectivity state machine)
 #   - voice-assistant  (python3 -m linux_voice_assistant)
 #   - sendspin-client  (music streaming)
+#   - airplay          (shairport-sync + nqptp, AirPlay 2 receiver)
 #   - pulseaudio       (reboot device if it dies)
 #
 # Usage:
 #   S99ha-speaker start|stop|restart
 #   S99ha-speaker <service> start|stop|restart
 #
-# Services: netmonitor, voice-assistant, sendspin-client
+# Services: netmonitor, voice-assistant, sendspin-client, airplay
 
 PIDDIR=/var/run/thirdreality
 MONITOR_PIDFILE=$PIDDIR/ha-speaker.pid
@@ -23,6 +24,9 @@ DEVICE_CONF="/data/conf/device.json"
 SENDSPIN_CLIENT=/usr/bin/sendspin-client
 [ -r /etc/default/sendspin-client ] && . /etc/default/sendspin-client
 
+NQPTP=/usr/bin/nqptp
+SHAIRPORT_SYNC=/usr/bin/shairport-sync
+
 CHECK_INTERVAL=10
 
 # Disable flag files: when present, the monitor loop skips restarting that service.
@@ -31,6 +35,7 @@ CHECK_INTERVAL=10
 DISABLE_NETMONITOR=/tmp/ha_disable_netmonitor
 DISABLE_VOICE=/tmp/ha_disable_voice
 DISABLE_SENDSPIN=/tmp/ha_disable_sendspin
+DISABLE_AIRPLAY=/tmp/ha_disable_airplay
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -108,6 +113,33 @@ stop_sendspin() {
 }
 
 # ---------------------------------------------------------------------------
+# shairport-sync + nqptp (AirPlay 2 receiver)
+# ---------------------------------------------------------------------------
+
+start_airplay() {
+    # nqptp must be up before shairport-sync (provides PTP shared memory)
+    if ! pidof nqptp > /dev/null 2>&1; then
+        start-stop-daemon --start --quiet --background --name nqptp --exec "$NQPTP"
+        # Brief settle for nqptp to create its shared-memory mapping
+        sleep 1
+    fi
+
+    pidof shairport-sync > /dev/null 2>&1 && return 0
+
+    rm -f "$DISABLE_AIRPLAY"
+    local spk_name
+    spk_name=$(jq -r '.device.name // "3RSPK Speaker"' "$DEVICE_CONF")
+    start-stop-daemon --start --quiet --background --name shairport-sync \
+        --exec "$SHAIRPORT_SYNC" -- -c /etc/shairport-sync.conf -a "$spk_name"
+}
+
+stop_airplay() {
+    touch "$DISABLE_AIRPLAY"
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --name shairport-sync
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --name nqptp
+}
+
+# ---------------------------------------------------------------------------
 # Monitor loop
 # ---------------------------------------------------------------------------
 
@@ -131,7 +163,13 @@ monitor_loop() {
             start_sendspin
         fi
 
-        # 4. pulseaudio
+        # 4. shairport-sync (AirPlay 2 receiver) + nqptp (PTP timing)
+        if [ ! -f "$DISABLE_AIRPLAY" ] && ! pidof shairport-sync > /dev/null 2>&1; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] shairport-sync not running, restarting..."
+            start_airplay
+        fi
+
+        # 5. pulseaudio
         if ! pidof pulseaudio > /dev/null 2>&1; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] pulseaudio died, rebooting..."
             sync
@@ -194,9 +232,10 @@ stop() {
     /etc/init.d/S44bluetooth stop
     stop_voice_assistant
     stop_sendspin
+    stop_airplay
     stop_netmonitor
     # Clear disable flags so next start brings everything up
-    rm -f "$DISABLE_NETMONITOR" "$DISABLE_VOICE" "$DISABLE_SENDSPIN"
+    rm -f "$DISABLE_NETMONITOR" "$DISABLE_VOICE" "$DISABLE_SENDSPIN" "$DISABLE_AIRPLAY"
 }
 
 restart() {
@@ -237,9 +276,17 @@ service_cmd() {
                 *) echo "Usage: $0 sendspin-client {start|stop|restart}"; exit 1 ;;
             esac
             ;;
+        airplay)
+            case "$action" in
+                start)   start_airplay ;;
+                stop)    stop_airplay ;;
+                restart) stop_airplay; sleep 1; start_airplay ;;
+                *) echo "Usage: $0 airplay {start|stop|restart}"; exit 1 ;;
+            esac
+            ;;
         *)
             echo "Unknown service: $svc"
-            echo "Services: netmonitor, voice-assistant, sendspin-client"
+            echo "Services: netmonitor, voice-assistant, sendspin-client, airplay"
             exit 1
             ;;
     esac
@@ -253,12 +300,12 @@ case "$1" in
     start)   start   ;;
     stop)    stop    ;;
     restart) restart ;;
-    netmonitor|voice-assistant|sendspin-client)
+    netmonitor|voice-assistant|sendspin-client|airplay)
         service_cmd "$1" "$2"
         ;;
     *)
         echo "Usage: $0 {start|stop|restart}"
-        echo "       $0 {netmonitor|voice-assistant|sendspin-client} {start|stop|restart}"
+        echo "       $0 {netmonitor|voice-assistant|sendspin-client|airplay} {start|stop|restart}"
         exit 1
         ;;
 esac
