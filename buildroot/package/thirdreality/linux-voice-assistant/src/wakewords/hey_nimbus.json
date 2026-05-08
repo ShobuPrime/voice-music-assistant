@@ -1,0 +1,11 @@
+{
+  "type": "openWakeWord",
+  "wake_word": "Hey Nimbus",
+  "author": "adardano3",
+  "model": "hey_nimbus.tflite",
+  "version": 1,
+  "trained_languages": ["en"],
+  "openWakeWord": {
+    "probability_cutoff": 0.5
+  }
+}
