@@ -6,13 +6,14 @@
 #   - netmonitor       (WiFi/internet connectivity state machine)
 #   - voice-assistant  (python3 -m linux_voice_assistant)
 #   - sendspin-client  (music streaming)
+#   - dlna             (gmediarender DLNA / UPnP MediaRenderer)
 #   - pulseaudio       (reboot device if it dies)
 #
 # Usage:
 #   S99ha-speaker start|stop|restart
 #   S99ha-speaker <service> start|stop|restart
 #
-# Services: netmonitor, voice-assistant, sendspin-client
+# Services: netmonitor, voice-assistant, sendspin-client, dlna
 
 PIDDIR=/var/run/thirdreality
 MONITOR_PIDFILE=$PIDDIR/ha-speaker.pid
@@ -23,6 +24,8 @@ DEVICE_CONF="/data/conf/device.json"
 SENDSPIN_CLIENT=/usr/bin/sendspin-client
 [ -r /etc/default/sendspin-client ] && . /etc/default/sendspin-client
 
+GMRENDER_RESURRECT=/usr/bin/gmediarender
+
 CHECK_INTERVAL=10
 
 # Disable flag files: when present, the monitor loop skips restarting that service.
@@ -31,6 +34,7 @@ CHECK_INTERVAL=10
 DISABLE_NETMONITOR=/tmp/ha_disable_netmonitor
 DISABLE_VOICE=/tmp/ha_disable_voice
 DISABLE_SENDSPIN=/tmp/ha_disable_sendspin
+DISABLE_DLNA=/tmp/ha_disable_dlna
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -108,6 +112,31 @@ stop_sendspin() {
 }
 
 # ---------------------------------------------------------------------------
+# gmediarender (DLNA / UPnP receiver)
+# ---------------------------------------------------------------------------
+
+start_dlna() {
+    pidof gmediarender > /dev/null 2>&1 && return 0
+
+    rm -f "$DISABLE_DLNA"
+    local spk_name mac uuid
+    spk_name=$(jq -r '.device.name // "3RSPK Speaker"' "$DEVICE_CONF")
+    mac=$(jq -r '.device.macAddress' "$DEVICE_CONF" | tr -d ':' | tr 'A-Z' 'a-z')
+    uuid="3rspk-dlna-${mac}"
+
+    start-stop-daemon --start --quiet --background --name gmediarender \
+        --exec "$GMRENDER_RESURRECT" -- \
+        -f "$spk_name" -u "$uuid" \
+        --gstout-audiosink=pulsesink \
+        --logfile=/dev/null
+}
+
+stop_dlna() {
+    touch "$DISABLE_DLNA"
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --name gmediarender
+}
+
+# ---------------------------------------------------------------------------
 # Monitor loop
 # ---------------------------------------------------------------------------
 
@@ -131,7 +160,13 @@ monitor_loop() {
             start_sendspin
         fi
 
-        # 4. pulseaudio
+        # 4. gmediarender (DLNA / UPnP receiver)
+        if [ ! -f "$DISABLE_DLNA" ] && ! pidof gmediarender > /dev/null 2>&1; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] gmediarender not running, restarting..."
+            start_dlna
+        fi
+
+        # 5. pulseaudio
         if ! pidof pulseaudio > /dev/null 2>&1; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] pulseaudio died, rebooting..."
             sync
@@ -194,9 +229,10 @@ stop() {
     /etc/init.d/S44bluetooth stop
     stop_voice_assistant
     stop_sendspin
+    stop_dlna
     stop_netmonitor
     # Clear disable flags so next start brings everything up
-    rm -f "$DISABLE_NETMONITOR" "$DISABLE_VOICE" "$DISABLE_SENDSPIN"
+    rm -f "$DISABLE_NETMONITOR" "$DISABLE_VOICE" "$DISABLE_SENDSPIN" "$DISABLE_DLNA"
 }
 
 restart() {
@@ -237,9 +273,17 @@ service_cmd() {
                 *) echo "Usage: $0 sendspin-client {start|stop|restart}"; exit 1 ;;
             esac
             ;;
+        dlna)
+            case "$action" in
+                start)   start_dlna ;;
+                stop)    stop_dlna ;;
+                restart) stop_dlna; sleep 1; start_dlna ;;
+                *) echo "Usage: $0 dlna {start|stop|restart}"; exit 1 ;;
+            esac
+            ;;
         *)
             echo "Unknown service: $svc"
-            echo "Services: netmonitor, voice-assistant, sendspin-client"
+            echo "Services: netmonitor, voice-assistant, sendspin-client, dlna"
             exit 1
             ;;
     esac
@@ -253,12 +297,12 @@ case "$1" in
     start)   start   ;;
     stop)    stop    ;;
     restart) restart ;;
-    netmonitor|voice-assistant|sendspin-client)
+    netmonitor|voice-assistant|sendspin-client|dlna)
         service_cmd "$1" "$2"
         ;;
     *)
         echo "Usage: $0 {start|stop|restart}"
-        echo "       $0 {netmonitor|voice-assistant|sendspin-client} {start|stop|restart}"
+        echo "       $0 {netmonitor|voice-assistant|sendspin-client|dlna} {start|stop|restart}"
         exit 1
         ;;
 esac
