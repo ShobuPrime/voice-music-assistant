@@ -129,7 +129,8 @@ start_dlna() {
         --exec "$GMRENDER_RESURRECT" -- \
         -f "$spk_name" -u "$uuid" \
         --gstout-audiosink=pulsesink \
-        --logfile=/dev/null
+        --logfile=/dev/null \
+        > /dev/null 2>&1
 }
 
 stop_dlna() {
