@@ -98,7 +98,8 @@ start_sendspin() {
     local spk_name
     spk_name=$(jq -r '.device.name // "3RSPK Speaker"' "$DEVICE_CONF")
     start-stop-daemon --start --quiet --background --name sendspin-client \
-        --exec "$SENDSPIN_CLIENT" -- $SENDSPIN_CLIENT_OPTS "$spk_name"
+        --exec "$SENDSPIN_CLIENT" -- $SENDSPIN_CLIENT_OPTS "$spk_name" \
+        > /dev/null 2>&1
 }
 
 stop_sendspin() {
