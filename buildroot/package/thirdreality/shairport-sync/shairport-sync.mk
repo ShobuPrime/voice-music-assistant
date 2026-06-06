@@ -19,7 +19,13 @@ SHAIRPORT_SYNC_LICENSE = GPL-2.0+
 SHAIRPORT_SYNC_LICENSE_FILES = COPYING
 SHAIRPORT_SYNC_AUTORECONF = YES
 
+# host-libplist provides the `plistutil` build tool that shairport-sync's
+# configure requires for AirPlay 2 (it processes plist fixtures at build time).
+# The official Docker image (upstream has no AirPlay 2) doesn't ship plistutil,
+# so we build it via buildroot instead of depending on a host apt package —
+# keeps the build self-contained and the official Dockerfile untouched.
 SHAIRPORT_SYNC_DEPENDENCIES = \
+	host-libplist \
 	pulseaudio \
 	avahi \
 	openssl \
