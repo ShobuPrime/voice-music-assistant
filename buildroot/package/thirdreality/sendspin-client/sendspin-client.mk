@@ -8,7 +8,7 @@
 #
 ################################################################################
 
-SENDSPIN_CLIENT_VERSION = v0.3.1
+SENDSPIN_CLIENT_VERSION = v0.6.1
 SENDSPIN_CLIENT_SITE = $(call github,Sendspin,sendspin-cpp,$(SENDSPIN_CLIENT_VERSION))
 SENDSPIN_CLIENT_LICENSE = Apache-2.0
 SENDSPIN_CLIENT_LICENSE_FILES = LICENSE
@@ -20,12 +20,21 @@ SENDSPIN_CLIENT_CONF_OPTS = \
 	-DSENDSPIN_ENABLE_METADATA=ON \
 	-DSENDSPIN_ENABLE_ARTWORK=OFF \
 	-DSENDSPIN_ENABLE_VISUALIZER=OFF \
+	-DSENDSPIN_ENABLE_COLOR=OFF \
 	-DUSE_TLS=OFF \
 	-DUSE_ZLIB=ON \
 	-DBUILD_SHARED_LIBS=OFF
 
-# Restructure: put sendspin-cpp source into a subdirectory,
-# overlay our CMakeLists.txt and client source at root.
+# Restructure: move upstream sendspin-cpp source into a subdirectory and
+# overlay our wrapper CMakeLists.txt + client source at the build dir root.
+#
+# This must happen in POST_EXTRACT (not PRE_BUILD or PRE_CONFIGURE),
+# because cmake configure runs on $(@D) and needs to see CMakeLists.txt
+# already in place. Hooks earlier than configure don't fire on a plain
+# `<pkg>-rebuild`; if you edit sendspin-client.cpp and want to re-pick it
+# up without a full extract, use `<pkg>-reconfigure` (which also doesn't
+# re-cp here, so dirclean is the safe fallback) or just dirclean the
+# package build dir.
 define SENDSPIN_CLIENT_RESTRUCTURE
 	$(Q)mkdir -p $(@D)/_sendspin_src
 	$(Q)mv $(@D)/CMakeLists.txt $(@D)/cmake $(@D)/include $(@D)/src \
