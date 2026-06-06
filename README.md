@@ -9,6 +9,8 @@ ThirdReality Voice&Music Assistant is an open-source speaker that supports conne
 
 - [Voice\&Music Assistant](#voicemusic-assistant)
   - [Build](#build)
+    - [Native Build](#native-build)
+    - [Docker Build](#docker-build)
   - [Flash](#flash)
   - [Serial debugging](#serial-debugging)
   - [Setup the voice assist](#setup-the-voice-assist)
@@ -25,6 +27,25 @@ ThirdReality Voice&Music Assistant is an open-source speaker that supports conne
 
 ## Build
 
+Clone the repository:
+```
+git clone https://github.com/thirdreality/voice-music-assistant.git
+cd <YOUR PATH>/voice-music-assistant
+git submodule update --init
+```
+
+### Docker Build
+
+No host dependencies required other than Docker.
+
+```
+./go --docker trspk <version>        // Build inside Docker (recommended)
+./go --docker-shell                  // Enter container interactively for debugging
+./go --docker trspk rebuild <package>  // Rebuild a single package in Docker
+```
+
+### Native Build
+
 Requires:
   - Ubuntu 20.04
 
@@ -39,16 +60,10 @@ pip install pycrypto
 wget http://ftp.cn.debian.org/debian/pool/main/a/automake-1.16/automake_1.16.1-4_all.deb && sudo dpkg -i automake_1.16.1-4_all.deb && rm -f automake_1.16.1-4_all.deb
 ```
 
-Clone the repository:
-```
-git clone https://github.com/thirdreality/voice-music-assistant.git
-cd <YOUR PATH>/voice-music-assistant
-git submodule update --init
-```
-
 Build:
 ```
 ./go trspk <version>               // If no version number is specified, the date will be used
+./go trspk rebuild <package>       // Rebuild a single package
 ```
 
 The generated image is located at:
