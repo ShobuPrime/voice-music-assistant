@@ -67,6 +67,14 @@ Use the **official** Docker flow (adopted at v1.1.9): no host deps beyond Docker
 
 ## Keeping in sync with a new upstream release (the playbook)
 
+**Always check whether a newer upstream release exists — proactively, at the
+start of any maintenance/build work on this repo, not only when told one
+dropped.** Run `git fetch upstream --tags` and compare the newest `vX.Y.Z` tag
+against the baseline's current level (the latest `Merge tag 'vX.Y.Z'` commit on
+`linux-voice-assistant`, or `git describe --tags`). If upstream is ahead, run the
+playbook below before building, so images ship on the current release. Releases:
+https://github.com/thirdreality/voice-music-assistant/releases
+
 When upstream tags `vX.Y.Z`:
 
 1. **Read the release notes first** (don't infer from the diff alone) and
