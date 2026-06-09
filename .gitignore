@@ -7,3 +7,8 @@
 /*.vscode
 /*.github
 !/.github/
+
+# Build-time cruft: the official `go --docker` flow sets HOME=/build, so wget
+# (and our local docker-go.sh wrapper) drop a stray HSTS cache in the repo root.
+/.wget-hsts
+/docker-go.sh
