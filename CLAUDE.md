@@ -6,6 +6,13 @@ Goal: carry a set of **custom features** on top of upstream while staying at
 **full parity** with each official release. When upstream cuts a new tag, we
 merge it in, re-verify parity, and rebuild.
 
+> **Architecture note (v1.2.0+):** upstream replaced the Python voice
+> assistant with a native C++ one — package `linux-voice-assistant-cpp`
+> (WebRTC AEC3, music-reactive LED, tap-key control, Apache-2.0). The old
+> Python `linux-voice-assistant` package still exists in-tree but is
+> deselected from defconfig; do not re-enable it. S99ha-speaker now launches
+> `/usr/bin/linux-voice-assistant-cpp --name <n> --port 6053`.
+
 ## Remotes
 
 - `origin` → `git@github.com:ShobuPrime/voice-music-assistant.git` (our fork)
@@ -29,7 +36,7 @@ feature-branch extras) should show — nothing more. If a parity diff shows
 anything else, investigate before building.
 
 **On `linux-voice-assistant` baseline (so on every active branch):**
-- **Wake words** — `buildroot/package/thirdreality/linux-voice-assistant/src/wakewords/{hey_nimbus,nimbus}.{tflite,json}` (openWakeWord type, author "Anthony Dardano"). The live `nimbus.tflite` is the user's; treat its bytes as authoritative — do not regenerate.
+- **Wake words** — `buildroot/package/thirdreality/linux-voice-assistant-cpp/wakewords/openwakeword/{hey_nimbus,nimbus}.{tflite,json}` (openWakeWord type, author "Anthony Dardano"). **Since v1.2.0** these live in the C++ package (before, the Python pkg's `linux-voice-assistant/src/wakewords/`). The `.mk`'s `INSTALL_WAKEWORDS` post-install hook copies every `wakewords/{microwakeword,openwakeword}/*.{tflite,json}` to `/usr/share/thirdreality/wakewords/…` on the device. **v1.2.0 manifest schema** (the C++ loader rejects anything else): `{"type":"open","wake_word":…,"model":"X.tflite","trained_languages":["en"],"open":{"probability_cutoff":0.5,"sliding_window_size":5}}` — NOT the old Python `type:"openWakeWord"` form. The `author` field is ignored by the loader (kept for attribution). The live `nimbus.tflite` is the user's; treat its bytes as authoritative — do not regenerate. Like upstream's other openWakeWord models (alexa, hey_jarvis), they're installed but only **active** when the assistant runs `--wakeword-type open` — S99ha-speaker is left at upstream default per the rule below, so activation is a runtime/HA concern.
 - **Kernel MODVERSIONS fix** — `buildroot/board/thirdreality/trspk/kernel-fix.config` + a `BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES=…` line in `buildroot/configs/3reality_trspk_defconfig`. Needed because the cross-toolchain (gcc-arm-10.2, binutils 2.35) + relocatable kernel 5.4 + `__crc_*` CRC symbols make the vmlinux link fail; disabling `CONFIG_MODVERSIONS` unblocks it. Keep it regardless of build env.
 - **sendspin `software_version` from env** — `…/sendspin-client/sendspin-client.cpp` reads the `firmware_version` environ var instead of the hardcoded `"1.0.0"`.
 - **avahi surgical rename** — `…/tr-proj-ha-speaker/script/S99ha-speaker` uses `avahi-set-host-name` instead of bouncing `S50avahi-daemon` (avoids an mDNS blackout that hid `_esphomelib._tcp` from HA).
@@ -109,8 +116,12 @@ When upstream tags `vX.Y.Z`:
 As upstream catches up, our patches can become redundant — check each release:
 - **client_id from friendly_name** — adopted upstream in v1.1.9
   (`config.client_id = friendly_name`); we **dropped ours**.
-- **software_version from env** — still ours as of v1.1.9; keep until upstream
-  stops hardcoding `"1.0.0"`.
+- **software_version from env** — still ours as of v1.2.0; keep until upstream
+  stops hardcoding `"1.0.0"` (now ~line 895 of the rewritten `sendspin-client.cpp`).
+- **Wake-word location/schema** — changed at **v1.2.0** (Python→C++ migration):
+  models moved to `linux-voice-assistant-cpp/wakewords/openwakeword/` with the
+  new `type:"open"` manifest schema. Future merges: keep our two models there;
+  don't let them drift back to the dead Python package.
 - If upstream ever ships AirPlay 2, DLNA, the wake-word models, or the
   MODVERSIONS fix natively, retire our version in favor of theirs.
 
