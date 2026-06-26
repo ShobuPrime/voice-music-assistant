@@ -1,0 +1,11 @@
+{
+  "type": "open",
+  "wake_word": "Hey Nimbus",
+  "model": "hey_nimbus.tflite",
+  "trained_languages": ["en"],
+  "author": "Anthony Dardano",
+  "open": {
+    "probability_cutoff": 0.5,
+    "sliding_window_size": 5
+  }
+}
