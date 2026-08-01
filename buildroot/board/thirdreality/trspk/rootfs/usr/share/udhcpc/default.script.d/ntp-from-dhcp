@@ -22,7 +22,12 @@
 NTP_DEFAULT="/etc/default/ntpd"
 NTP_CONF="/etc/ntp.conf"
 # Public fallback servers (keep in sync with /etc/ntp.conf template).
-NTP_FALLBACK="pool.ntp.org time.cloudflare.com time.google.com time.apple.com"
+# FORK DELTA (jurisdiction): pool.ntp.org dropped — global volunteer pool,
+# can resolve to any operator in any country. NIST stratum-1 first. This
+# list is what gets written into /etc/ntp.conf on every lease, so it MUST
+# match the shipped /etc/ntp.conf or a DHCP renew silently reintroduces the
+# upstream server list.
+NTP_FALLBACK="time-d-g.nist.gov time-d-wwv.nist.gov time.cloudflare.com time.google.com"
 
 case "$1" in
     bound|renew)

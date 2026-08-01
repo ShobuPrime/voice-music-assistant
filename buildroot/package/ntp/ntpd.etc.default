@@ -1,15 +1,37 @@
 # NTP Servers to use for ntpdate
-# IP servers: tried first for instant sync (no DNS delay)
-NTPSERVERS_IP="162.159.200.1 216.239.35.0 203.107.6.88 120.25.115.20"
+#
+# FORK DELTA (jurisdiction): upstream ships
+#   NTPSERVERS_IP="162.159.200.1 216.239.35.0 203.107.6.88 120.25.115.20"
+# The last two are Aliyun Computing Co., LTD (Alibaba Cloud, Hangzhou, CN —
+# WHOIS netname ALISOFT; 203.107.6.88 is what ntp.aliyun.com resolves to).
+# ntpdate does NOT try these in order: ntpdate.sh passes the whole list to a
+# single invocation, which queries every server and picks the best responder.
+# So the Alibaba hosts received UDP/123 from this device on every boot even
+# when Cloudflare answered instantly and even when DHCP Option 42 supplied a
+# local server. Replaced with NIST stratum-1 (US Dept of Commerce), keeping
+# Cloudflare + Google as IPv4 fallback.
+#
+# IP servers: queried first for instant sync (no DNS delay)
+#   2610:20:6f15:15::27 = time-d-g.nist.gov    (NIST Gaithersburg, MD)
+#   2610:20:6f97:97::4  = time-d-wwv.nist.gov  (NIST WWV, Fort Collins, CO)
+#   162.159.200.1       = time.cloudflare.com  (Cloudflare, US)
+#   216.239.35.0        = time1.google.com     (Google, US)
+NTPSERVERS_IP="2610:20:6f15:15::27 2610:20:6f97:97::4 162.159.200.1 216.239.35.0"
 # Servers learned from DHCP Option 42 (managed by ntp-from-dhcp hook).
 # Do not edit by hand; the hook overwrites this line on every lease change.
 NTPSERVERS_DHCP=""
-# Domain fallback: tried only if all IPs fail
-NTPSERVERS_DNS="pool.ntp.org time.cloudflare.com time.google.com time.apple.com"
+# Domain fallback: tried only if all IPs fail.
+# pool.ntp.org dropped deliberately — it is the NTP Pool Project's global
+# volunteer round-robin and can resolve to a server operated by anyone in any
+# country, so it cannot be reasoned about by jurisdiction or enumerated in a
+# firewall rule. Use us.pool.ntp.org if a pool entry is ever wanted back.
+NTPSERVERS_DNS="time-d-g.nist.gov time-d-wwv.nist.gov time.cloudflare.com time.google.com"
 
 # Get initial time via ntpdate?
 NTPDATE=yes
-NTPDATE_OPTS="-4 -t 2"
+# NOTE: upstream passes -4 (force IPv4), which would silently ignore the NIST
+# IPv6 servers above. Dropped so ntpdate can use both address families.
+NTPDATE_OPTS="-t 2"
 
 # Start the ntp daemon?
 NTPD=yes
